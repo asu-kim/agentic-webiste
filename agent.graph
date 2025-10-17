@@ -62,6 +62,7 @@
 		{
 			"group": "Website",
 			"name": "website",
+			"port": 21100,
 			"distProtocol": "TCP",
 			"usePermanentDistKey": true,
 			"distKeyValidityPeriod": "365*day",
@@ -76,14 +77,15 @@
 				"cipher": "AES-128-CBC",
 				"mac": "SHA256"
 			},
+			"host": "localhost",
 			"backupToAuthIds": [
 				102
 			]
 		},
 		{
-			"group": "Agent",
+			"group": "HighTrustAgent",
 			"name": "agent1",
-			"distProtocol": "UDP",
+			"distProtocol": "TCP",
 			"usePermanentDistKey": false,
 			"distKeyValidityPeriod": "1*hour",
 			"maxSessionKeysPerRequest": 5,
@@ -102,9 +104,9 @@
 			]
 		},
 		{
-			"group": "Agent",
+			"group": "LowTrustAgent",
 			"name": "agent2",
-			"distProtocol": "UDP",
+			"distProtocol": "TCP",
 			"usePermanentDistKey": false,
 			"distKeyValidityPeriod": "1*hour",
 			"maxSessionKeysPerRequest": 30,
