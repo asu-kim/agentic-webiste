@@ -83,8 +83,8 @@
 			]
 		},
 		{
-			"group": "HighTrustAgent",
-			"name": "agent1",
+			"group": "HighTrustAgents",
+			"name": "net1.hightrustagent",
 			"distProtocol": "TCP",
 			"usePermanentDistKey": false,
 			"distKeyValidityPeriod": "1*hour",
@@ -104,7 +104,7 @@
 			]
 		},
 		{
-			"group": "LowTrustAgent",
+			"group": "LowTrustAgents",
 			"name": "agent2",
 			"distProtocol": "TCP",
 			"usePermanentDistKey": false,
