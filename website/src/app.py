@@ -1,9 +1,9 @@
 import os
 import sqlite3
-import hashlib
+import hashlib, hmac, binascii, os
 import json
 from cryptography.fernet import Fernet
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, make_response
 from datetime import datetime, timezone
 from flask_cors import CORS
 
@@ -21,6 +21,52 @@ def get_db():
         g.db = sqlite3.connect(DATABASE)
         g.db.row_factory = sqlite3.Row
     return g.db
+
+
+# TODO: get token with session key ID 
+TOKENS = {
+    "token_demo_1": os.urandom(32).hex(),  
+    "token_demo_2": os.urandom(32).hex(),
+}
+
+def hmac_sha256_hex(key_bytes: bytes, msg_bytes: bytes) -> str:
+    return hmac.new(key_bytes, msg_bytes, hashlib.sha256).hexdigest()
+
+@app.post("/api/agent/verify")
+def agent_verify():
+    data = request.get_json(silent=True) or {}
+    token_id = data.get("token_id", "")
+    nonce_hex = data.get("nonce_hex", "")
+    user_hmac_hex = (data.get("user_hmac_hex", "") or "").lower()
+
+    if not token_id or not nonce_hex or not user_hmac_hex:
+        return jsonify(error="missing fields"), 400
+    if not (len(nonce_hex) == 32 and all(c in "0123456789abcdefABCDEF" for c in nonce_hex)):
+        return jsonify(error="invalid nonce format"), 400
+    if not (len(user_hmac_hex) == 64 and all(c in "0123456789abcdef" for c in user_hmac_hex)):
+        return jsonify(error="invalid hmac format"), 400
+
+    secret_hex = TOKENS.get(token_id)
+    if not secret_hex:
+        return jsonify(error="verification failed"), 401
+
+    try:
+        key_bytes = binascii.unhexlify(secret_hex)
+        nonce_bytes = binascii.unhexlify(nonce_hex)
+    except binascii.Error:
+        return jsonify(error="bad hex"), 400
+
+    server_hmac_hex = hmac_sha256_hex(key_bytes, nonce_bytes)  # website's calcuation result
+
+    ok = hmac.compare_digest(server_hmac_hex, user_hmac_hex)
+    if not ok:
+        return jsonify(error="verification failed"), 401
+
+    resp = make_response(jsonify(ok=True))     # Success
+    # resp.set_cookie("session", session_token, httponly=True, secure=True, samesite="Strict")
+    return resp, 200
+
+
 
 @app.teardown_appcontext
 def close_db(error):
@@ -111,4 +157,4 @@ def verify_token():
 if __name__ == "__main__":
     with app.app_context():
         init_db()
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(port=5000, debug=True)
