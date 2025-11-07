@@ -36,12 +36,11 @@ export default function AgentLogin() {
     e.preventDefault();
     setErr('');
     setLoading(true);
+
     try {
-      // 서버에서 토큰 아이디로 비밀키를 조회하고 서버가 직접 HMAC을 계산하여 비교
-      const resp = await fetch('/api/agent/verify', {
+      const resp = await fetch('http://127.0.0.1:5000/api/agent/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // 세션/쿠키 사용 시
         body: JSON.stringify({
           token_id: tokenId,
           nonce_hex: nonce,
@@ -52,7 +51,7 @@ export default function AgentLogin() {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data?.error || `Verification failed (${resp.status})`);
       }
-      // 성공 시 대시보드로 이동 (서버가 세션 쿠키/토큰 설정했다고 가정)
+      // Success
       navigate('/dashboard');
     } catch (e) {
       setErr(e.message);
@@ -81,7 +80,7 @@ export default function AgentLogin() {
             type="text"
             value={tokenId}
             onChange={(e) => setTokenId(e.target.value)}
-            placeholder="token_123..."
+            placeholder="00000000"
             required
           />
 

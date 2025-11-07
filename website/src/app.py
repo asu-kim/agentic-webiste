@@ -1,3 +1,4 @@
+import base64
 import os
 import sqlite3
 import hashlib, hmac, binascii, os
@@ -6,6 +7,7 @@ from cryptography.fernet import Fernet
 from flask import Flask, request, jsonify, g, make_response
 from datetime import datetime, timezone
 from flask_cors import CORS
+from utils.getSessionKey import fetch_session_keys
 
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000"])
@@ -14,7 +16,13 @@ CORS(app, origins=["http://localhost:3000"])
 fernet_key = Fernet.generate_key()
 fernet = Fernet(fernet_key)
 
+here = os.path.dirname(__file__)
+
+def _abs(p: str) -> str:
+    return os.path.abspath(os.path.expanduser(p))
+
 DATABASE = "users.db"
+CONFIG_PATH = 'configs/net1/website.config'
 
 def get_db():
     if "db" not in g:
@@ -23,11 +31,10 @@ def get_db():
     return g.db
 
 
-# TODO: get token with session key ID 
-TOKENS = {
+"""TOKENS = {
     "token_demo_1": os.urandom(32).hex(),  
     "token_demo_2": os.urandom(32).hex(),
-}
+} """
 
 def hmac_sha256_hex(key_bytes: bytes, msg_bytes: bytes) -> str:
     return hmac.new(key_bytes, msg_bytes, hashlib.sha256).hexdigest()
@@ -46,17 +53,21 @@ def agent_verify():
     if not (len(user_hmac_hex) == 64 and all(c in "0123456789abcdef" for c in user_hmac_hex)):
         return jsonify(error="invalid hmac format"), 400
 
-    secret_hex = TOKENS.get(token_id)
-    if not secret_hex:
-        return jsonify(error="verification failed"), 401
+    print('token id: ', token_id)
+    # get token with session key ID 
+    session_key = fetch_session_keys(CONFIG_PATH, int(token_id))
+    print(session_key)
+    if not session_key:
+        return jsonify(error="Cannot get the session Key"), 401
 
     try:
-        key_bytes = binascii.unhexlify(secret_hex)
+        key_bytes = base64.b64decode(session_key)
         nonce_bytes = binascii.unhexlify(nonce_hex)
     except binascii.Error:
         return jsonify(error="bad hex"), 400
 
     server_hmac_hex = hmac_sha256_hex(key_bytes, nonce_bytes)  # website's calcuation result
+    print(server_hmac_hex)
 
     ok = hmac.compare_digest(server_hmac_hex, user_hmac_hex)
     if not ok:
