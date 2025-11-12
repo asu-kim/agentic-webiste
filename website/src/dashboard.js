@@ -3,7 +3,7 @@ import './App.css';
 
 
 export default function Dashboard(){
-  const [user, setUser] = useState("Guest");
+  const [agent, setAgent] = useState(() => localStorage.getItem("agentname") || "UnknownAgent");
   const [trust, setTrust] = useState(() => localStorage.getItem("agent_trust") || "low");
   const [results, setResults] = useState({});
   const [remainingMs, setRemainingMs] = useState(() => {
@@ -11,11 +11,6 @@ export default function Dashboard(){
     return exp > 0 ? Math.max(0, exp - Date.now()) : 0;
   });
   const API_BASE = 'http://127.0.0.1:5000';
-
-  useEffect(() => {
-    const u = localStorage.getItem("username") || "Guest";
-    setUser(u);
-  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -26,6 +21,7 @@ export default function Dashboard(){
       if (rem <= 0) {
         localStorage.removeItem("agent_session_expires_at");
         localStorage.removeItem("agent_trust");
+        localStorage.removeItem("agentname");
         window.location.replace("/agent-login");
       }
     }, 1000);
@@ -43,7 +39,7 @@ export default function Dashboard(){
 
   const callScope = async (scope) => {
     const headers = {
-      "X-User": localStorage.getItem("username") || user,
+      "X-user": localStorage.getItem("username") || '', //// 
       "X-Trust-Level": trust,
     };
     try {
@@ -69,30 +65,12 @@ export default function Dashboard(){
     { key: "phone", label: "Phone Number" },
   ];
 
-  const handleTrustChange = (e) => {
-    const val = e.target.value;
-    setTrust(val);
-    localStorage.setItem("agent_trust", val);
-  };
-
   return (
     <div className="access-wrap">
       <h1 className="title">Dashboard</h1>
-      <p className="subtle">Hello, <span className="mono">{user}</span></p>
+      <p className="subtle">Hello, <span className="mono">{agent}</span></p>
       <p className="subtle">Session remaining: <span className="mono">{formatRemaining(remainingMs)}</span></p>
 
-      <div className="bar">
-        <a className="btn" href="/access-control">Open Agent Access Control</a>
-        <span className="spacer" />
-        <label>
-          Trust level:&nbsp;
-          <select value={trust} onChange={handleTrustChange}>
-            <option value="high">high</option>
-            <option value="medium">medium</option>
-            <option value="low">low</option>
-          </select>
-        </label>
-      </div>
 
       <div className="grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:'12px'}}>
         {scopes.map(({key, label}) => {
@@ -112,14 +90,6 @@ export default function Dashboard(){
         })}
       </div>
 
-      <details className="mt">
-        <summary>How this test works</summary>
-        <ol>
-          <li>Set trust level (high/medium/low). This is sent as <code>X-Trust-Level</code>.</li>
-          <li>Click a scope card to call <code>/api/resource/&lt;scope&gt;</code> with headers <code>X-User</code> and <code>X-Trust-Level</code>.</li>
-          <li>If the policy allows it → 200 JSON; otherwise → 403 forbidden.</li>
-        </ol>
-      </details>
     </div>
   );
 }

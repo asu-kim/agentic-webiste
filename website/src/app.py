@@ -12,7 +12,6 @@ from functools import wraps
 
 app = Flask(__name__)
 CORS(app)
-# app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))  
 
 fernet_key = Fernet.generate_key()
 fernet = Fernet(fernet_key)
@@ -28,7 +27,7 @@ SCOPES = ("email", "address", "cardNumber", "phone")
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DATABASE)
+        g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
     return g.db
 
@@ -38,7 +37,11 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    email TEXT,
+    address TEXT,
+    cardNumber TEXT,
+    phone TEXT
 );
 
 CREATE TABLE IF NOT EXISTS policies (
@@ -66,7 +69,7 @@ def agent_verify():
     if not (len(nonce_hex) == 32 and all(c in "0123456789abcdefABCDEF" for c in nonce_hex)):
         return jsonify(error="invalid nonce format"), 400
     if not (len(user_hmac_hex) == 64 and all(c in "0123456789abcdef" for c in user_hmac_hex)):
-        return jsonify(error="invalid hmac format"), 400
+        return jsonify(error="invajlid hmac format"), 400
 
     print('token id: ', token_id)
     # get token with session key ID 
@@ -150,8 +153,7 @@ def is_allowed(username: str, trust_level: str, scope: str) -> bool:
     return bool(row["allowed"])
 
 def get_agent_from_request():
-    return 'high'
-# TODO
+    return {"username": request.headers.get("X-user"), "trust_level": request.headers.get("X-Trust-Level")}
 
 def require_scope(scope):
     def decorator(fn):
@@ -267,8 +269,8 @@ def register():
 
     hashed_pw = hash_password(password)
     db.execute(
-        "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
-        (username, hashed_pw, datetime.now(timezone.utc).isoformat())
+        "INSERT INTO users (username, password_hash, created_at, email, address, cardNumber, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (username, hashed_pw, datetime.now(timezone.utc).isoformat(), "test@email.com", "1151 S Forest Ave, Tempe, AZ", "1234 1234 1234 1234", "000-000-0000")
     )
     db.commit()
     return jsonify({"success": True, "message": "Register success"}), 201

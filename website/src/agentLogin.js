@@ -65,9 +65,8 @@ export default function AgentLogin() {
         localStorage.removeItem("agent_session_expires_at");
       }
 
-      const username = localStorage.getItem("username") || "Agent";
-      localStorage.setItem("username", username);
-      // Success
+      const agentName = trust + "Trust" + "Agent";
+      localStorage.setItem("agentname", agentName);
       navigate('/dashboard');
     } catch (e) {
       setErr(e.message);

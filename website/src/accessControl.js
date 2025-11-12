@@ -10,7 +10,7 @@ const SCOPES = [
   { key: "phone", label: "Phone Number" },
 ];
 
-const API_BASE = process.env.REACT_APP_API_BASE || ""; // e.g., http://127.0.0.1:5000
+const API_BASE = 'http://127.0.0.1:5000';
 
 function loadPolicy(username) {
   try {
@@ -44,17 +44,16 @@ export default function AccessControl({ username }) {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
 
-  // navigation + logout
+
   const navigate = useNavigate();
   const handleLogout = () => {
     try {
-      localStorage.removeItem("username");
+      // localStorage.removeItem("username");    //// TODO: solve it with multi users environment
       localStorage.removeItem("agent_trust");
-      localStorage.removeItem("agent_token"); // if present
     } finally {
       setSaving(false);
       setStatus("");
-      navigate("/login");
+      navigate("/");
     }
   };
 
