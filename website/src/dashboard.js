@@ -71,18 +71,25 @@ export default function Dashboard(){
       <p className="subtle">Hello, <span className="mono">{agent}</span></p>
       <p className="subtle">Session remaining: <span className="mono">{formatRemaining(remainingMs)}</span></p>
 
-
-      <div className="grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:'12px'}}>
+      <div className="grid" style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
+          gap: "20px",
+        }}>
         {scopes.map(({key, label}) => {
           const r = results[key];
           return (
-            <div key={key} className="card" style={{border:'1px solid #eee', borderRadius:12, padding:12}}>
-              <h3 style={{marginTop:0}}>{label}</h3>
-              <button className="btn primary" onClick={() => callScope(key)}>Request {label}</button>
+            <div key={key} id={`card-${key}`} className="card" style={{border:'1px solid #eee', borderRadius:12, padding:12}}>
+              <h3 id={`card-label-${key}`} style={{marginTop:0}}>{label}</h3>
+              <button className="btn primary" id={`btn-request-${key}`} onClick={() => callScope(key)}>Request {label}</button>
               {r && (
-                <div style={{marginTop:8}}>
-                  <div className="subtle">Status: <span className="mono">{String(r.status)}</span></div>
-                  <pre className="code-block" style={{marginTop:6}}>{JSON.stringify(r.body, null, 2)}</pre>
+                <div id={`result-${key}`} style={{marginTop:8}}>
+                  <div className="subtle">
+                    Status: <span className="mono">{String(r.status)}</span>
+                  </div>
+                  <pre className="code-block" style={{marginTop:6}}>
+                    {JSON.stringify(r.body, null, 2)}
+                  </pre>
                 </div>
               )}
             </div>

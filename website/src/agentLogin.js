@@ -82,7 +82,7 @@ export default function AgentLogin() {
         <form onSubmit={handleSubmit} className="form">
           <label className="label">Random Nonce (32-digit hex)</label>
           <div className="row">
-            <input className="input monospace" type="text" value={nonce} readOnly />
+            <input className="input monospace" id="nonceHex" type="text" value={nonce} readOnly />
           </div>
           <div className="row gap">
             <button type="button" className="btn secondary" onClick={() => navigator.clipboard.writeText(nonce)}>Copy</button>
@@ -103,6 +103,7 @@ export default function AgentLogin() {
           <input
             className="input monospace"
             type="text"
+            id="hmac"
             value={hmacHex}
             onChange={(e) => setHmacHex(e.target.value.trim())}
             placeholder="64-digit hex"

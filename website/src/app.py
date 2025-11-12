@@ -74,15 +74,15 @@ def agent_verify():
     print('token id: ', token_id)
     # get token with session key ID 
     session_key_value = fetch_session_keys(CONFIG_PATH, int(token_id))
-    session_key_Id = session_key_value[0]["cipherKey"]
+    session_key = session_key_value[0]["cipherKey"]
     session_validity = session_key_value[0]["relValidity"]
 
-    print(session_key_Id)
-    if not session_key_Id:
+    print(session_key)
+    if not session_key:
         return jsonify(error="Cannot get the session Key"), 401
 
     try:
-        key_bytes = base64.b64decode(session_key_Id)
+        key_bytes = base64.b64decode(session_key)
         nonce_bytes = binascii.unhexlify(nonce_hex)
     except binascii.Error:
         return jsonify(error="bad hex"), 400
