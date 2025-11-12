@@ -32,6 +32,6 @@ def fetch_session_keys(config_path: str, key_id: int):
         })
     if not session_key_value:
         raise ValueError("Empty session_keys in JSON")
-    session_key = session_key_value[0]["cipherKey"]
-    return session_key
+    return session_key_value
+
 

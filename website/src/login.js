@@ -9,17 +9,19 @@ export default function Login(){
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
 
+  const API_BASE = 'http://127.0.0.1:5000';
+
   const login = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5001/login", {
+      const res = await axios.post(`${API_BASE}/login`, {
         username:username, password:password
       });
       if (res.data.success) {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("username", username);
         setMessage("Login success");
-        navigate("/dashboard"); 
+        navigate("/userdashboard"); 
       } else {
         setMessage("Login fail " + res.data.message);
       }
@@ -33,20 +35,20 @@ export default function Login(){
     e.preventDefault();
 
     try{
-      const res = await axios.post("http://localhost:5001/register", {
+      const res = await axios.post(`${API_BASE}/register`, {
         username: username, password: password
       });
 
       if (res.data.success){
         setMessage("Registered. Auto log-in");
-        const res = await axios.post("http://localhost:5001/login", {
+        const res = await axios.post(`${API_BASE}/login`, {
           username:username, password:password
         });
         if (res.data.success) {
           localStorage.setItem("token", res.data.token);
           localStorage.setItem("username", username);
           setMessage("Login success");
-          navigate("/dashboard");
+          navigate("/userdashboard");
         } else {
           setMessage("Login fail " + res.data.message);
         }

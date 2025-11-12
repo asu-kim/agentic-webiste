@@ -1,4 +1,3 @@
-// AgentLogin.js
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
@@ -24,6 +23,8 @@ export default function AgentLogin() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
+  const API_BASE = 'http://127.0.0.1:5000';
+
   useEffect(() => { setNonce(genHexNonce32()); }, []);
 
   const handleRegen = () => {
@@ -37,8 +38,8 @@ export default function AgentLogin() {
     setErr('');
     setLoading(true);
 
-    try {
-      const resp = await fetch('http://127.0.0.1:5000/api/agent/verify', {
+    try {   
+      const resp = await fetch(`${API_BASE}/api/agent/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -47,10 +48,25 @@ export default function AgentLogin() {
           user_hmac_hex: hmacHex
         })
       });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
         throw new Error(data?.error || `Verification failed (${resp.status})`);
       }
+
+      const trust = data.trust_level || "low";
+      localStorage.setItem("agent_trust", trust);
+
+      const ttlMs = Number(data.session_validity || 0);
+      if (ttlMs > 0) {
+        const expiresAtMs = Date.now() + ttlMs;
+        localStorage.setItem("agent_session_expires_at", String(expiresAtMs));
+      } else {
+        localStorage.removeItem("agent_session_expires_at");
+      }
+
+      const username = localStorage.getItem("username") || "Agent";
+      localStorage.setItem("username", username);
       // Success
       navigate('/dashboard');
     } catch (e) {
@@ -97,7 +113,7 @@ export default function AgentLogin() {
           />
 
           <button className="btn primary" type="submit" disabled={!nonce || !tokenId || !hmacHex || loading}>
-            {loading ? 'Verifying…' : 'Submit Proof'}
+            {loading ? 'Verifying…' : 'Verify'}
           </button>
           {err && <div className="error">{err}</div>}
         </form>

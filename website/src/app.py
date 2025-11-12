@@ -8,9 +8,10 @@ from flask import Flask, request, jsonify, g, make_response
 from datetime import datetime, timezone
 from flask_cors import CORS
 from utils.getSessionKey import fetch_session_keys
+from functools import wraps
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000"])
+CORS(app)
 # app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))  
 
 fernet_key = Fernet.generate_key()
@@ -18,11 +19,12 @@ fernet = Fernet(fernet_key)
 
 here = os.path.dirname(__file__)
 
-def _abs(p: str) -> str:
-    return os.path.abspath(os.path.expanduser(p))
-
 DATABASE = "users.db"
 CONFIG_PATH = 'configs/net1/website.config'
+DB_PATH = os.path.join(os.path.dirname(__file__), DATABASE)
+
+TRUST_LEVELS = ("high", "medium", "low")
+SCOPES = ("email", "address", "cardNumber", "phone")
 
 def get_db():
     if "db" not in g:
@@ -31,10 +33,23 @@ def get_db():
     return g.db
 
 
-"""TOKENS = {
-    "token_demo_1": os.urandom(32).hex(),  
-    "token_demo_2": os.urandom(32).hex(),
-} """
+SCHEMA_SQL = r"""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS policies (
+  username TEXT NOT NULL,
+  trust_level TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  allowed INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (username, trust_level, scope)
+);
+"""
+
 
 def hmac_sha256_hex(key_bytes: bytes, msg_bytes: bytes) -> str:
     return hmac.new(key_bytes, msg_bytes, hashlib.sha256).hexdigest()
@@ -55,13 +70,16 @@ def agent_verify():
 
     print('token id: ', token_id)
     # get token with session key ID 
-    session_key = fetch_session_keys(CONFIG_PATH, int(token_id))
-    print(session_key)
-    if not session_key:
+    session_key_value = fetch_session_keys(CONFIG_PATH, int(token_id))
+    session_key_Id = session_key_value[0]["cipherKey"]
+    session_validity = session_key_value[0]["relValidity"]
+
+    print(session_key_Id)
+    if not session_key_Id:
         return jsonify(error="Cannot get the session Key"), 401
 
     try:
-        key_bytes = base64.b64decode(session_key)
+        key_bytes = base64.b64decode(session_key_Id)
         nonce_bytes = binascii.unhexlify(nonce_hex)
     except binascii.Error:
         return jsonify(error="bad hex"), 400
@@ -72,10 +90,22 @@ def agent_verify():
     ok = hmac.compare_digest(server_hmac_hex, user_hmac_hex)
     if not ok:
         return jsonify(error="verification failed"), 401
+    
+    if session_validity >= 7200000:
+        trust_level = "high"
+    elif session_validity >= 3600000:
+        trust_level = "medium"
+    else:
+        trust_level = "low"
+    
+    resp_json = {
+        "ok": True,
+        "trust_level": trust_level,
+        "session_validity": session_validity,
+    }
 
-    resp = make_response(jsonify(ok=True))     # Success
     # resp.set_cookie("session", session_token, httponly=True, secure=True, samesite="Strict")
-    return resp, 200
+    return jsonify(resp_json), 200
 
 
 
@@ -87,15 +117,10 @@ def close_db(error):
 
 def init_db():
     db = get_db()
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )
-    """)
+    db.executescript(SCHEMA_SQL)
     db.commit()
+
+
 
 def hash_password(password: str, salt: str = None):
     if not salt:
@@ -111,6 +136,120 @@ def verify_password(stored_hash: str, password: str):
         return stored == check
     except Exception:
         return False
+    
+def is_allowed(username: str, trust_level: str, scope: str) -> bool:
+    if trust_level not in TRUST_LEVELS or scope not in SCOPES:
+        return False
+    db = get_db()
+    row = db.execute(
+        "SELECT allowed FROM policies WHERE username = ? AND trust_level = ? AND scope = ?",
+        (username, trust_level, scope),
+    ).fetchone()
+    if not row:
+        return False
+    return bool(row["allowed"])
+
+def get_agent_from_request():
+    return 'high'
+# TODO
+
+def require_scope(scope):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            agent = get_agent_from_request()
+            if not agent:
+                return jsonify(error="unauthorized"), 401
+            if not is_allowed(agent["username"], agent["trust_level"], scope):
+                return jsonify(error="forbidden", reason=f"scope '{scope}' not allowed for trust '{agent['trust_level']}'"), 403
+            request.agent = agent
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+@app.route("/api/policy", methods=["GET"])
+def get_policy():
+    username = request.args.get("username")
+    if not username:
+        return jsonify(error="username required"), 400
+
+    db = get_db()
+    out = {lvl: {s: False for s in SCOPES} for lvl in TRUST_LEVELS}
+    for row in db.execute(
+        "SELECT trust_level, scope, allowed FROM policies WHERE username = ?",
+        (username,),
+    ):
+        out[row["trust_level"]][row["scope"]] = bool(row["allowed"])
+    return jsonify({"username": username, "policy": out})
+
+
+@app.route("/api/policy", methods=["POST"])
+def save_policy():
+    """
+    Body: { "username": "<user>", "policy": { "low": {"email": true, ...}, "medium": {...}, "high": {...} } }
+    """
+    data = request.get_json(force=True)
+    username = data.get("username")
+    policy = data.get("policy", {})
+    if not username or not isinstance(policy, dict):
+        return jsonify(error="username and policy required"), 400
+
+    db = get_db()
+    for lvl in TRUST_LEVELS:
+        scopes = policy.get(lvl, {}) or {}
+        for s in SCOPES:
+            allowed = 1 if scopes.get(s) else 0
+            db.execute(
+                """
+                INSERT INTO policies (username, trust_level, scope, allowed)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(username, trust_level, scope)
+                DO UPDATE SET allowed=excluded.allowed
+                """,
+                (username, lvl, s, allowed),
+            )
+    db.commit()
+    return jsonify(status="ok")
+
+
+@app.route("/api/resource/<scope>")
+@require_scope(scope="dynamic")  
+def get_resource(scope):
+    return jsonify(error="misconfigured"), 500
+
+@app.route("/api/resource/email")
+@require_scope("email")
+def res_email():
+    username = request.agent["username"]
+    db = get_db()
+    row = db.execute("SELECT email FROM users WHERE username=?", (username,)).fetchone()
+    return jsonify(email=(row["email"] if row and row["email"] else None))
+
+@app.route("/api/resource/address")
+@require_scope("address")
+def res_address():
+    username = request.agent["username"]
+    db = get_db()
+    row = db.execute("SELECT address FROM users WHERE username=?", (username,)).fetchone()
+    return jsonify(address=(row["address"] if row and row["address"] else None))
+
+@app.route("/api/resource/cardNumber")
+@require_scope("cardNumber")
+def res_card():
+    username = request.agent["username"]
+    db = get_db()
+    row = db.execute("SELECT cardNumber FROM users WHERE username=?", (username,)).fetchone()
+    return jsonify(cardNumber=(row["cardNumber"] if row and row["cardNumber"] else None))
+
+@app.route("/api/resource/phone")
+@require_scope("phone")
+def res_phone():
+    username = request.agent["username"]
+    db = get_db()
+    row = db.execute("SELECT phone FROM users WHERE username=?", (username,)).fetchone()
+    return jsonify(phone=(row["phone"] if row and row["phone"] else None))
+
+
 
 @app.route("/register", methods=["POST"])
 def register():
