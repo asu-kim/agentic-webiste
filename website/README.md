@@ -64,7 +64,12 @@ Open terminal 4
 # generate key for delegate access to agent
 cd $ROOT/iotauth/entity/node/example_entities
 node user.js configs/net1/user.config 
-delegateAccess
+```
+Inside the program, enter the following command to delegate access.
+
+The `<trust_level>` argument accepts one of the following values: `high`, `medium`, or `low`.
+```
+delegateAccess <trust_level>
 ```
 Terminate the program after checking the `sessionKeyID`.
 
