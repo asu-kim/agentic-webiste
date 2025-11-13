@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import os, re, argparse, hmac, hashlib
+import os, re, argparse, hmac, hashlib, binascii
 from io import BytesIO
 from time import sleep
 from typing import Optional, Tuple, List
@@ -147,7 +147,7 @@ def finish_session() -> str:
     return "Browser closed"
 
 @tool
-def hmac_sha256_hex(key_bytes: bytes, msg_bytes: bytes) -> str:
+def hmac_sha256_hex(session_key: bytes, nonce_hex: bytes) -> str:
     """
     Compute HMAC-SHA256 over the given message with the given key,
     and return the result as a 64-character lowercase hex string.
@@ -158,8 +158,10 @@ def hmac_sha256_hex(key_bytes: bytes, msg_bytes: bytes) -> str:
 
     Returns:
         The HMAC-SHA256 digest encoded as a hex string.
-    """    
-    return hmac.new(key_bytes, msg_bytes, hashlib.sha256).hexdigest()
+    """  
+    key_bytes = base64.b64decode(session_key)
+    nonce_bytes = binascii.unhexlify(nonce_hex)    
+    return hmac.new(key_bytes, nonce_bytes, hashlib.sha256).hexdigest()
 
 @tool
 def get_nonce() -> str:
