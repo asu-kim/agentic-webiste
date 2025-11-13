@@ -153,8 +153,8 @@ def hmac_sha256_hex(session_key: bytes, nonce_hex: bytes) -> str:
     and return the result as a 64-character lowercase hex string.
 
     Args:
-        key_bytes: Secret key as raw bytes.
-        msg_bytes: Message to authenticate as raw bytes.
+        session_key: Secret key as raw bytes.
+        nonce_hex: Message to authenticate as raw bytes.
 
     Returns:
         The HMAC-SHA256 digest encoded as a hex string.
@@ -330,9 +330,8 @@ def main():
         Go to https://localhost:3000/agent-login.
         Use get_nonce() to read the 32-hex nonce from the page.
         Use get_session_key({args.keyId}) to get the base64 session key.
-        Compute HMAC and then login with login(<hmac_hex>).
-        After login, navigate to https://localhost:3000/dashboard.
-        Get {args.items} from the website. 
+        Compute HMAC using hmac_sha256_hex(session_key, nonce) and then login with login(<hmac_hex>).
+        After login, get {args.items} from the website using get_items().     TODO make get_items 
         """
     out = agent.run(task + AGENT_SYSTEM_PROMPT)
     print("\n=== FINAL OUTPUT ===")

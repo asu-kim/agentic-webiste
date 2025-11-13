@@ -121,8 +121,8 @@ def hmac_sha256_hex(session_key: bytes, nonce_hex: bytes) -> str:
     and return the result as a 64-character lowercase hex string.
 
     Args:
-        key_bytes: Secret key as raw bytes.
-        msg_bytes: Message to authenticate as raw bytes.
+        session_key: Secret key as raw bytes.
+        nonce_hex: Message to authenticate as raw bytes.
 
     Returns:
         The HMAC-SHA256 digest encoded as a hex string.
