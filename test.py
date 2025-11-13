@@ -78,6 +78,11 @@ def fetch_session_keys(config_path: str, key_id: int):
         raise ValueError("Empty session_keys in JSON")
     return session_key_value
 
+def get_session_key(key_id: int):
+    session_key_value = fetch_session_keys(CONFIG_PATH, int(key_id))
+    session_key = session_key_value[0]["cipherKey"]
+    return session_key
+
 
 # ex) _exists(By.ID, "ap_email")
 def _exists(by: By, val: str) -> bool:  
@@ -100,48 +105,11 @@ def _text_or_value(el):
         pass
     return ""
 
-@tool
-def get_session_key(key_id: int) -> str:
-    """
-    Look up a session key by its integer key ID and return the raw key string.
-
-    Args:
-        key_id: The numeric ID of the session key to retrieve.
-
-    Returns:
-        The cipher key (session key) associated with the given key ID.
-    """
-    session_key_value = fetch_session_keys(CONFIG_PATH, int(key_id))
-    session_key = session_key_value[0]["cipherKey"]
-    return session_key
-
-@tool
 def go_to(url: str) -> str:
-    """
-    Navigate the browser (Selenium driver) to the specified URL.
-
-    Use this when you want the agent's browser to open a new page.
-
-    Args:
-        url: The absolute URL to open.
-
-    Returns:
-        A short status message indicating the destination URL.
-    """    
     driver.get(url)
     return f"Navigated to {url}"
 
-@tool
 def finish_session() -> str:
-    """
-    Gracefully close the current browser session.
-
-    This waits briefly to allow any in-flight actions to complete,
-    then quits the Selenium WebDriver.
-
-    Returns:
-        A status message confirming the browser was closed.
-    """
     sleep(5)
     driver.quit()
     return "Browser closed"
@@ -158,26 +126,11 @@ def hmac_sha256_hex(key_bytes: bytes, msg_bytes: bytes) -> str:
 
     Returns:
         The HMAC-SHA256 digest encoded as a hex string.
-    """    
+    """      
     return hmac.new(key_bytes, msg_bytes, hashlib.sha256).hexdigest()
 
-@tool
+
 def get_nonce() -> str:
-    """
-    Extract a 32-digit hex nonce from the current page.
-
-    This tool searches for:
-      1. An element with ID 'nonceHex' and tries its text/value.
-      2. Any visible text on the page via helium.find_all(Text).
-
-    As soon as a 32-hex-digit substring is found, it is returned.
-
-    Returns:
-        A 32-character hexadecimal nonce string.
-
-    Raises:
-        RuntimeError: If no 32-hex-digit nonce can be found on the page.
-    """    
     try:
         for sel in [
             (By.ID, "nonceHex"),
@@ -202,33 +155,7 @@ def get_nonce() -> str:
 
     raise RuntimeError("Nonce (32 hex) not found on page")
 
-@tool
 def login(hmac_hex: str) -> str:
-    """
-    Fill in the HMAC input field on the current page and submit the login/verify form.
-
-    The tool tries several selectors to locate the HMAC input:
-      - id='hmac'
-      - name='hmac'
-      - input with placeholder containing 'HMAC'
-      - input with aria-label containing 'HMAC'
-
-    If none of these are found, it falls back to helium.write(..., into='HMAC-SHA256 (64-hex)').
-
-    Then it attempts to click:
-      1. A button labeled "Verify" (via helium.click).
-      2. Or a clickable submit/primary button via CSS:
-         button[type='submit'], button.primary
-
-    Args:
-        hmac_hex: The 64-character hex HMAC value to enter.
-
-    Returns:
-        A status message indicating that the login was submitted.
-
-    Raises:
-        RuntimeError: If no HMAC input or submit button can be found.
-    """    
     hmac_input = None
     selectors = [
         (By.ID, "hmac"),
@@ -290,7 +217,6 @@ Use get_nonce() to read the 32-hex nonce from the page.
 Compute HMAC-SHA256 where:
  - key is the base64 session_key
  - message is the hexadecimal nonce
-using hmac_sha256_hex(session_key, nonce)
 Login with login(HMAC) using computed hmac.
 
 Click each bars to get desired items using clickItems().
@@ -298,18 +224,18 @@ Click each bars to get desired items using clickItems().
 """
 
 def build_agent():
-    model_id = "openai/gpt-oss-20b" # "meta-llama/Llama-3.1-8B-Instruct"
+    model_id = "meta-llama/Llama-3.1-8B-Instruct" # "meta-llama/Llama-3.1-8B-Instruct"
 
     model = TransformersModel(model_id=model_id)
 
     agent = CodeAgent(
         tools=[
-            go_to, finish_session, get_session_key, get_nonce, hmac_sha256_hex, login,
+            hmac_sha256_hex,
         ],
         model=model,
-        max_steps=10,
+        max_steps=5,
         verbosity_level=2,
-         additional_authorized_imports=["helium", "re", "hmac", "hashlib", "base64", "binascii"]
+        additional_authorized_imports=["helium", "re", "hmac", "hashlib", "base64", "binascii"]
     )
     agent.python_executor("from helium import *")
     return agent
@@ -325,14 +251,9 @@ def main():
     agent = build_agent()
 
     task = f"""
-        Go to https://localhost:3000/agent-login.
-        Use get_nonce() to read the 32-hex nonce from the page.
-        Use get_session_key({args.keyId}) to get the base64 session key.
-        Compute HMAC and then login with login(<hmac_hex>).
-        After login, navigate to https://localhost:3000/dashboard.
-        Get {args.items} from the website. 
+        Can you compute HMAC with SHA256 for the hexadecimal string "106ecde130df03e50e8d34c4ccaf7d18" with a key in base 64 "uFeIMbFGU8I9d1uc9tL/Xw==" using the tool hmac_sha256_hex?
         """
-    out = agent.run(task + AGENT_SYSTEM_PROMPT)
+    out = agent.run(task)
     print("\n=== FINAL OUTPUT ===")
     print(out)
 
