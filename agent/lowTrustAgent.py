@@ -281,6 +281,134 @@ def login(hmac_hex: str) -> str:
     sleep(1.0)
     return "Login submitted"
 
+@tool
+def get_items(item: str) -> str:
+    """
+    Click the dashboard cards for the requested items (scopes) and
+    return their results as a JSON string.
+
+    Args:
+        item:
+            A string describing which items to fetch.
+            Supported scopes: email, address, cardNumber, phone
+
+    Behavior:
+        For each scope:
+          1. Click the corresponding "Request <Label>" button on the dashboard
+             (by id='btn-request-<scope>' if available, otherwise by text).
+          2. Wait briefly for the response to appear.
+          3. Read the status and JSON body from the card.
+        Returns a JSON string like:
+          {
+            "email": {"status": "200", "body": {"email": "s@example.com"}},
+            "address": {"status": "403", "body": {"error": "forbidden"}}
+          }
+    """
+    SCOPE_LABELS = {
+        "email": "Email",
+        "address": "Address",
+        "cardNumber": "Card Number",
+        "phone": "Phone Number",
+    }
+
+    raw = (item or "").strip().lower()
+    if not raw:
+        raise RuntimeError("get_items: no item specified")
+
+    if raw == "all":
+        scopes = list(SCOPE_LABELS.keys())
+    else:
+        parts = re.split(r"[,\s;]+", raw)
+        scopes = []
+        for p in parts:
+            if not p:
+                continue
+            if p in SCOPE_LABELS:
+                scopes.append(p)
+            elif p == "card" or p == "cardnumber":
+                scopes.append("cardNumber")
+            else:
+                raise RuntimeError(f"Unknown scope in get_items: {p}")
+
+    results = {}
+
+    def click_scope(scope: str):
+        """해당 스코프 카드의 Request 버튼을 클릭."""
+        label = SCOPE_LABELS[scope]
+
+        try:
+            btn = WebDriverWait(driver, 2).until(
+                EC.element_to_be_clickable((By.ID, f"btn-request-{scope}"))
+            )
+            btn.click()
+            return f"clicked btn-request-{scope}"
+        except Exception:
+            pass
+
+        try:
+            helium.click(f"Request {label}")
+            return f"clicked button by text 'Request {label}'"
+        except Exception:
+            pass
+
+        try:
+            card = WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.ID, f"card-{scope}"))
+            )
+            btn = card.find_element(By.CSS_SELECTOR, "button.btn.primary")
+            btn.click()
+            return f"clicked primary button inside card-{scope}"
+        except Exception:
+            pass
+
+        raise RuntimeError(f"Request button not found for scope={scope}")
+
+    def read_scope(scope: str):
+        status_text = ""
+        try:
+            el = WebDriverWait(driver, 1.5).until(
+                EC.visibility_of_element_located((By.ID, f"status-{scope}"))
+            )
+            status_text = (el.text or "").strip()
+        except Exception:
+            try:
+                card = driver.find_element(By.ID, f"card-{scope}")
+                st = card.find_element(By.XPATH, ".//*[contains(., 'Status')]")
+                status_text = (st.text or "").strip()
+            except Exception:
+                status_text = ""
+
+        m = re.search(r"(\d{3})", status_text)
+        status_norm = m.group(1) if m else status_text
+
+        body_text = ""
+        try:
+            pre = driver.find_element(By.ID, f"response-{scope}")
+            body_text = pre.text
+        except Exception:
+            try:
+                card = driver.find_element(By.ID, f"card-{scope}")
+                pre = card.find_element(By.CSS_SELECTOR, "pre.code-block")
+                body_text = pre.text
+            except Exception:
+                body_text = ""
+
+        body_norm = body_text
+        try:
+            body_norm = json.loads(body_text)
+        except Exception:
+            pass
+
+        return {"status": status_norm, "body": body_norm}
+
+    for scope in scopes:
+        click_scope(scope)
+        sleep(0.5) 
+        results[scope] = read_scope(scope)
+
+    return json.dumps(results, ensure_ascii=False, indent=2)
+
+
 
 AGENT_SYSTEM_PROMPT = """
 Always call the registered tools functions directly.
@@ -295,7 +423,7 @@ Compute HMAC-SHA256 where:
 using hmac_sha256_hex(session_key, nonce)
 Login with login(HMAC) using computed hmac.
 
-Click each bars to get desired items using clickItems().
+Click each bars to get desired items using get_items().
 
 """
 
@@ -306,7 +434,7 @@ def build_agent():
 
     agent = CodeAgent(
         tools=[
-            go_to, finish_session, get_session_key, get_nonce, hmac_sha256_hex, login,
+            go_to, finish_session, get_session_key, get_nonce, hmac_sha256_hex, login, get_items
         ],
         model=model,
         max_steps=10,
@@ -331,7 +459,7 @@ def main():
         Use get_nonce() to read the 32-hex nonce from the page.
         Use get_session_key({args.keyId}) to get the base64 session key.
         Compute HMAC using hmac_sha256_hex(session_key, nonce) and then login with login(<hmac_hex>).
-        After login, get {args.items} from the website using get_items().     TODO make get_items 
+        After login, get {args.items} from the website using get_items({args.items}).     
         """
     out = agent.run(task + AGENT_SYSTEM_PROMPT)
     print("\n=== FINAL OUTPUT ===")
