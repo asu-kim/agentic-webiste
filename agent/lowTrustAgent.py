@@ -181,9 +181,12 @@ def get_nonce() -> str:
         RuntimeError: If no 32-hex-digit nonce can be found on the page.
     """ 
     sleep(5.0)
-    temp = driver.find_element(By.ID, "nonceHex")
-    if (temp):
-        return temp
+    try:
+        temp = driver.find_element(By.ID, "nonceHex")
+        return temp  
+    except Exception:
+        pass
+    
     try:
         for sel in [
             (By.ID, "nonceHex"),
