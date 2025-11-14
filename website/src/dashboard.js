@@ -3,24 +3,18 @@ import './App.css';
 
 
 export default function Dashboard(){
-  if (typeof localStorage !== 'undefined'){
-    const [agent, setAgent] = useState(() => localStorage.getItem("agentname") || "UnknownAgent");
-    const [trust, setTrust] = useState(() => localStorage.getItem("agent_trust") || "low");
-    const [results, setResults] = useState({});
-    const [remainingMs, setRemainingMs] = useState(() => {
-      const exp = parseInt(localStorage.getItem("agent_session_expires_at") || "0", 10);
-      return exp > 0 ? Math.max(0, exp - Date.now()) : 0;
-    });
-  }
-
+  const [agent, setAgent] = useState(() => localStorage.getItem("agentname") || "UnknownAgent");
+  const [trust, setTrust] = useState(() => localStorage.getItem("agent_trust") || "low");
+  const [results, setResults] = useState({});
+  const [remainingMs, setRemainingMs] = useState(() => {
+    const exp = parseInt(localStorage.getItem("agent_session_expires_at") || "0", 10);
+    return exp > 0 ? Math.max(0, exp - Date.now()) : 0;
+  });
   const API_BASE = 'http://127.0.0.1:5000';
 
   useEffect(() => {
     const id = setInterval(() => {
-      if (typeof localStorage !== 'undefined'){
-        const exp = parseInt(localStorage.getItem("agent_session_expires_at") || "0", 10);
-      }
-      
+      const exp = parseInt(localStorage.getItem("agent_session_expires_at") || "0", 10);
       if (!exp) { setRemainingMs(0); return; }
       const rem = Math.max(0, exp - Date.now());
       setRemainingMs(rem);
@@ -44,11 +38,8 @@ export default function Dashboard(){
   };
 
   const callScope = async (scope) => {
-    if (typeof localStorage !== 'undefined') {
-      const username = localStorage.getItem("username")
-    }
     const headers = {
-      "X-user": username || '',
+      "X-user": localStorage.getItem("username") || '', //// 
       "X-Trust-Level": trust,
     };
     try {
