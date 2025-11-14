@@ -39,7 +39,7 @@ export default function Dashboard(){
 
   const callScope = async (scope) => {
     const headers = {
-      "X-user": localStorage.getItem("username") || '', //// 
+      "X-user": localStorage.getItem("username") || 'user', //// 
       "X-Trust-Level": trust,
     };
     try {
