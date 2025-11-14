@@ -411,19 +411,14 @@ def get_items(item: str) -> str:
 
 
 AGENT_SYSTEM_PROMPT = """
-Always call the registered tools functions directly.
-Print each steps' description.
-Do NOT invent or assume any functions that are not in the registered tool list.
+Rules:
+- Always call the registered tools functions directly.
+- Print each steps' description.
+- Do NOT invent or assume any functions that are not in the registered tool list.
+- Combine all steps into a single valid Python code block enclosed by <code> ... </code>.
+- The code must run without syntax errors.
+- The final line must call final_answer(items_json).
 
-Use get_nonce() to read the 32-hex nonce from the page.
-
-Compute HMAC-SHA256 where:
- - key is the base64 session_key
- - message is the hexadecimal nonce
-using hmac_sha256_hex(session_key, nonce)
-Login with login(HMAC) using computed hmac.
-
-Click each bars to get desired items using get_items().
 
 """
 
@@ -455,11 +450,17 @@ def main():
     agent = build_agent()
 
     task = f"""
-        Go to https://localhost:3000/agent-login.
-        Use get_nonce() to read the 32-hex nonce from the page.
-        Use get_session_key({args.keyId}) to get the base64 session key.
-        Compute HMAC using hmac_sha256_hex(session_key, nonce) and then login with login(<hmac_hex>).
-        After login, get {args.items} from the website using get_items({args.items}).     
+        Follow these steps exactly and output results cleanly.
+        1. Go to https://localhost:3000/agent-login  
+        2. Use get_nonce() to read the 32-hex nonce from the page.  
+        3. Use get_session_key({args.keyId}) to get the base64 session key.  
+        4. Compute the HMAC using:
+            hmac_sha256_hex(session_key, nonce)
+        where:
+            - key = the base64 session_key (decode before use)
+            - message = the hexadecimal nonce  
+        5. Login with login(<hmac_hex>).  
+        6. After login, use get_items({args.items}) to get the requested data.  
         """
     out = agent.run(task + AGENT_SYSTEM_PROMPT)
     print("\n=== FINAL OUTPUT ===")
