@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import os, re, argparse
+import os, re, argparse, hmac, hashlib, binascii
 from io import BytesIO
 from time import sleep
 from typing import Optional, Tuple, List
@@ -28,6 +28,7 @@ from urllib.parse import urlparse, parse_qs
 import subprocess, shlex, json, base64, os, re
 
 load_dotenv()
+here = os.path.dirname(__file__)
 
 temp_dir = f"~/data/tmp/helium_data_{os.getpid()}"
 firefox_options = webdriver.FirefoxOptions()
@@ -56,7 +57,7 @@ def _parse_last_json_line(stdout: str) -> dict:
     raise ValueError("No JSON line found in Node output")
 
 def fetch_session_keys(config_path: str, key_id: int):
-    agent_dir = _abs(os.path.join(here, '../../../iotauth/entity/node/example_entities'))
+    agent_dir = _abs(os.path.join(here, '../iotauth/entity/node/example_entities'))
     cmd = f'node agent.js {shlex.quote(config_path)} keyId {int(key_id)}'
     p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=agent_dir)
     if p.returncode != 0:
@@ -76,11 +77,6 @@ def fetch_session_keys(config_path: str, key_id: int):
     if not session_key_value:
         raise ValueError("Empty session_keys in JSON")
     return session_key_value
-
-def get_session_key(key_id: int):
-    session_key_value = fetch_session_keys(CONFIG_PATH, int(key_id))
-    session_key = session_key_value[0]["cipherKey"]
-    return session_key
 
 
 # ex) _exists(By.ID, "ap_email")
@@ -104,17 +100,93 @@ def _text_or_value(el):
         pass
     return ""
 
+@tool
+def get_session_key(key_id: int) -> str:
+    """
+    Look up a session key by its integer key ID and return the raw key string.
+
+    Args:
+        key_id: The numeric ID of the session key to retrieve.
+
+    Returns:
+        The cipher key (session key) associated with the given key ID.
+    """
+    session_key_value = fetch_session_keys(CONFIG_PATH, int(key_id))
+    session_key = session_key_value[0]["cipherKey"]
+    return session_key
+
+@tool
 def go_to(url: str) -> str:
+    """
+    Navigate the browser (Selenium driver) to the specified URL.
+
+    Use this when you want the agent's browser to open a new page.
+
+    Args:
+        url: The absolute URL to open.
+
+    Returns:
+        A short status message indicating the destination URL.
+    """    
     driver.get(url)
     return f"Navigated to {url}"
 
+@tool
 def finish_session() -> str:
+    """
+    Gracefully close the current browser session.
+
+    This waits briefly to allow any in-flight actions to complete,
+    then quits the Selenium WebDriver.
+
+    Returns:
+        A status message confirming the browser was closed.
+    """
     sleep(5)
     driver.quit()
     return "Browser closed"
 
+@tool
+def hmac_sha256_hex(session_key: bytes, nonce_hex: bytes) -> str:
+    """
+    Compute HMAC-SHA256 over the given message with the given key,
+    and return the result as a 64-character lowercase hex string.
 
+    Args:
+        session_key: Secret key as raw bytes.
+        nonce_hex: Message to authenticate as raw bytes.
+
+    Returns:
+        The HMAC-SHA256 digest encoded as a hex string.
+    """  
+    key_bytes = base64.b64decode(session_key)
+    nonce_bytes = binascii.unhexlify(nonce_hex)    
+    return hmac.new(key_bytes, nonce_bytes, hashlib.sha256).hexdigest()
+
+@tool
 def get_nonce() -> str:
+    """
+    Extract a 32-digit hex nonce from the current page.
+
+    This tool searches for:
+      1. An element with ID 'nonceHex' and tries its text/value.
+      2. Any visible text on the page via helium.find_all(Text).
+
+    As soon as a 32-hex-digit substring is found, it is returned.
+
+    Returns:
+        A 32-character hexadecimal nonce string.
+
+    Raises:
+        RuntimeError: If no 32-hex-digit nonce can be found on the page.
+    """ 
+    sleep(5.0)
+    try:
+        temp = driver.find_element(By.ID, "nonceHex")
+        return temp.get_attribute("value")
+    except Exception:
+        pass
+    
     try:
         for sel in [
             (By.ID, "nonceHex"),
@@ -139,13 +211,38 @@ def get_nonce() -> str:
 
     raise RuntimeError("Nonce (32 hex) not found on page")
 
-def login(hmac_hex: str) -> str:
+@tool
+def login(hmac_hex: str, tokenId: str) -> str:
+    """
+    Fill in the HMAC input field on the current page and submit the login/verify form.
+
+    The tool tries several selectors to locate the HMAC input:
+      - id='hmac'
+      - name='hmac'
+      - input with placeholder containing 'HMAC'
+      - input with aria-label containing 'HMAC'
+
+    If none of these are found, it falls back to helium.write(..., into='HMAC-SHA256 (64-hex)').
+
+    Then it attempts to click:
+      1. A button labeled "Verify" (via helium.click).
+      2. Or a clickable submit/primary button via CSS:
+         button[type='submit'], button.primary
+
+    Args:
+        hmac_hex: The 64-character hex HMAC value to enter.
+        tokenId: Session Key Id to get session key from auth.
+
+    Returns:
+        A status message indicating that the login was submitted.
+
+    Raises:
+        RuntimeError: If no HMAC input or submit button can be found.
+    """    
     hmac_input = None
     selectors = [
         (By.ID, "hmac"),
-        (By.NAME, "hmac"),
-        (By.CSS_SELECTOR, "input[placeholder*='HMAC']"),
-        (By.CSS_SELECTOR, "input[aria-label*='HMAC']"),
+        (By.CSS_SELECTOR, "input[placeholder*='64-digit hex']"),
     ]
     for sel in selectors:
         try:
@@ -165,7 +262,33 @@ def login(hmac_hex: str) -> str:
             raise RuntimeError("HMAC input not found")
     else:
         hmac_input.clear()
-        hmac_input.send_keys(hmac_hex)    
+        hmac_input.send_keys(hmac_hex)   
+
+    toekn_input = None
+    selectors = [
+        (By.ID, "tokenId"),
+        (By.CSS_SELECTOR, "input[placeholder*='00000000']"),
+    ]
+    for sel in selectors:
+        try:
+            el = WebDriverWait(driver, 3).until(
+                EC.presence_of_element_located(sel)
+            )
+            if el:
+                token_input = el
+                break
+        except Exception:
+            pass
+
+    if toekn_input is None:
+        try:
+            helium.write(tokenId, into="00000000")
+        except Exception:
+            raise RuntimeError("TokenId input not found")
+    else:
+        toekn_input.clear()
+        toekn_input.send_keys(tokenId)    
+
 
     clicked = False
     try:
@@ -187,37 +310,163 @@ def login(hmac_hex: str) -> str:
     if not clicked:
         raise RuntimeError("Submit button not found")
 
-    sleep(1.0)
+    sleep(60)
     return "Login submitted"
+
+@tool
+def get_items(item: str) -> str:
+    """
+    Click the dashboard cards for the requested items (scopes) and
+    return their results as a JSON string.
+
+    Args:
+        item:
+            A string describing which items to fetch.
+            Supported scopes: email, address, cardNumber, phone
+
+    Behavior:
+        For each scope:
+          1. Click the corresponding "Request <Label>" button on the dashboard
+             (by id='btn-request-<scope>' if available, otherwise by text).
+          2. Wait briefly for the response to appear.
+          3. Read the status and JSON body from the card.
+        Returns a JSON string like:
+          {
+            "email": {"status": "200", "body": {"email": "s@example.com"}},
+            "address": {"status": "403", "body": {"error": "forbidden"}}
+          }
+    """
+    SCOPE_LABELS = {
+        "email": "Email",
+        "address": "Address",
+        "cardNumber": "Card Number",
+        "phone": "Phone Number",
+    }
+
+    raw = (item or "").strip().lower()
+    if not raw:
+        raise RuntimeError("get_items: no item specified")
+
+    if raw == "all":
+        scopes = list(SCOPE_LABELS.keys())
+    else:
+        parts = re.split(r"[,\s;]+", raw)
+        scopes = []
+        for p in parts:
+            if not p:
+                continue
+            if p in SCOPE_LABELS:
+                scopes.append(p)
+            elif p == "card" or p == "cardnumber":
+                scopes.append("cardNumber")
+            else:
+                raise RuntimeError(f"Unknown scope in get_items: {p}")
+
+    results = {}
+
+    def click_scope(scope: str):
+        label = SCOPE_LABELS[scope]
+
+        try:
+            btn = WebDriverWait(driver, 2).until(
+                EC.element_to_be_clickable((By.ID, f"btn-request-{scope}"))
+            )
+            btn.click()
+            return f"clicked btn-request-{scope}"
+        except Exception:
+            pass
+
+        try:
+            helium.click(f"Request {label}")
+            return f"clicked button by text 'Request {label}'"
+        except Exception:
+            pass
+
+        try:
+            card = WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.ID, f"card-{scope}"))
+            )
+            btn = card.find_element(By.CSS_SELECTOR, "button.btn.primary")
+            btn.click()
+            return f"clicked primary button inside card-{scope}"
+        except Exception:
+            pass
+
+        raise RuntimeError(f"Request button not found for scope={scope}")
+
+    def read_scope(scope: str):
+        status_text = ""
+        try:
+            el = WebDriverWait(driver, 1.5).until(
+                EC.visibility_of_element_located((By.ID, f"status-{scope}"))
+            )
+            status_text = (el.text or "").strip()
+        except Exception:
+            try:
+                card = driver.find_element(By.ID, f"card-{scope}")
+                st = card.find_element(By.XPATH, ".//*[contains(., 'Status')]")
+                status_text = (st.text or "").strip()
+            except Exception:
+                status_text = ""
+
+        m = re.search(r"(\d{3})", status_text)
+        status_norm = m.group(1) if m else status_text
+
+        body_text = ""
+        try:
+            pre = driver.find_element(By.ID, f"response-{scope}")
+            body_text = pre.text
+        except Exception:
+            try:
+                card = driver.find_element(By.ID, f"card-{scope}")
+                pre = card.find_element(By.CSS_SELECTOR, "pre.code-block")
+                body_text = pre.text
+            except Exception:
+                body_text = ""
+
+        body_norm = body_text
+        try:
+            body_norm = json.loads(body_text)
+        except Exception:
+            pass
+
+        return {"status": status_norm, "body": body_norm}
+
+    for scope in scopes:
+        click_scope(scope)
+        sleep(0.5) 
+        results[scope] = read_scope(scope)
+
+    return json.dumps(results, ensure_ascii=False, indent=2)
+
 
 
 AGENT_SYSTEM_PROMPT = """
-Always call the registered tools functions directly.
-Print each steps' description.
-Do NOT invent or assume any functions that are not in the registered tool list.
-
-Use get_nonce() to read the 32-hex nonce from the page.
-
-Compute HMAC-SHA256 where:
- - key is the base64 session_key
- - message is the hexadecimal nonce
-Login with login(HMAC) using computed hmac.
-
-Click each bars to get desired items using clickItems().
+Rules:
+- Always call the registered tools functions directly.
+- Print each steps' description.
+- Do NOT invent or assume any functions that are not in the registered tool list.
+- Combine all steps into a single valid Python code block enclosed by <code> ... </code>.
+- The code block must contain only executable Python code — **no natural language sentences, explanations, or comments written in prose.**
+- Natural-language explanations or reasoning belong outside the <code> block and Executing parsed code.
+- Use only valid Python syntax inside the <code> block and Executing parsed code.
+- The code must run without syntax errors.
+- The final line must call final_answer(items_json).
+- Do not process the session_key and nonce. Use raw value of session_key and nonce.
 
 """
 
 def build_agent():
-    model_id = "meta-llama/Llama-3.1-8B-Instruct" # "meta-llama/Llama-3.1-8B-Instruct"
+    model_id = "openai/gpt-oss-20b" # "meta-llama/Llama-3.1-8B-Instruct"
 
     model = TransformersModel(model_id=model_id)
 
     agent = CodeAgent(
         tools=[
-            go_to, finish_session, get_session_key, get_nonce,
+            go_to, finish_session, get_session_key, get_nonce, hmac_sha256_hex, login, get_items
         ],
         model=model,
-        max_steps=5,
+        max_steps=10,
         verbosity_level=2,
          additional_authorized_imports=["helium", "re", "hmac", "hashlib", "base64", "binascii"]
     )
@@ -235,12 +484,13 @@ def main():
     agent = build_agent()
 
     task = f"""
-        Go to https://localhost:3000/agent-login.
-        Use get_nonce() to read the 32-hex nonce from the page.
-        Use get_session_key({args.keyId}) to get the base64 session key.
-        Compute HMAC and then login with login(<hmac_hex>).
-        After login, navigate to https://localhost:3000/dashboard.
-        Get {args.items} from the website. 
+        Follow these steps exactly and output results cleanly.
+        1. Go to http://localhost:3000/agent-login  
+        2. Use get_nonce() to read the 32-hex nonce from the page.  
+        3. Use get_session_key({args.keyId}) to get the base64 session key.  
+        4. Compute the HMAC using: hmac_sha256_hex(<session_key>, <nonce>) 
+        5. Login with login(<hmac_hex>, <{args.keyId}>).  
+        6. After login, use get_items({args.items}) to get the requested data.  
         """
     out = agent.run(task + AGENT_SYSTEM_PROMPT)
     print("\n=== FINAL OUTPUT ===")
