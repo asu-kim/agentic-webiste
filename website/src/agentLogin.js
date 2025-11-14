@@ -92,6 +92,7 @@ export default function AgentLogin() {
           <label className="label">Token ID</label>
           <input
             className="input"
+            id="tokenId"
             type="text"
             value={tokenId}
             onChange={(e) => setTokenId(e.target.value)}

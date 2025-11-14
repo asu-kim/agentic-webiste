@@ -212,7 +212,7 @@ def get_nonce() -> str:
     raise RuntimeError("Nonce (32 hex) not found on page")
 
 @tool
-def login(hmac_hex: str) -> str:
+def login(hmac_hex: str, tokenId: str) -> str:
     """
     Fill in the HMAC input field on the current page and submit the login/verify form.
 
@@ -241,9 +241,7 @@ def login(hmac_hex: str) -> str:
     hmac_input = None
     selectors = [
         (By.ID, "hmac"),
-        (By.NAME, "hmac"),
-        (By.CSS_SELECTOR, "input[placeholder*='HMAC']"),
-        (By.CSS_SELECTOR, "input[aria-label*='HMAC']"),
+        (By.CSS_SELECTOR, "input[placeholder*='64-digit hex']"),
     ]
     for sel in selectors:
         try:
@@ -263,7 +261,33 @@ def login(hmac_hex: str) -> str:
             raise RuntimeError("HMAC input not found")
     else:
         hmac_input.clear()
-        hmac_input.send_keys(hmac_hex)    
+        hmac_input.send_keys(hmac_hex)   
+
+    toekn_input = None
+    selectors = [
+        (By.ID, "tokenId"),
+        (By.CSS_SELECTOR, "input[placeholder*='00000000']"),
+    ]
+    for sel in selectors:
+        try:
+            el = WebDriverWait(driver, 3).until(
+                EC.presence_of_element_located(sel)
+            )
+            if el:
+                token_input = el
+                break
+        except Exception:
+            pass
+
+    if toekn_input is None:
+        try:
+            helium.write(tokenId, into="00000000")
+        except Exception:
+            raise RuntimeError("TokenId input not found")
+    else:
+        toekn_input.clear()
+        toekn_input.send_keys(tokenId)    
+
 
     clicked = False
     try:
@@ -285,7 +309,7 @@ def login(hmac_hex: str) -> str:
     if not clicked:
         raise RuntimeError("Submit button not found")
 
-    sleep(1.0)
+    sleep(60)
     return "Login submitted"
 
 @tool
@@ -464,7 +488,7 @@ def main():
         2. Use get_nonce() to read the 32-hex nonce from the page.  
         3. Use get_session_key({args.keyId}) to get the base64 session key.  
         4. Compute the HMAC using: hmac_sha256_hex(<session_key>, <nonce>) 
-        5. Login with login(<hmac_hex>).  
+        5. Login with login(<hmac_hex>, <{args.keyId}>).  
         6. After login, use get_items({args.items}) to get the requested data.  
         """
     out = agent.run(task + AGENT_SYSTEM_PROMPT)
