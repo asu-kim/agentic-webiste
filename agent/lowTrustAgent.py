@@ -451,7 +451,7 @@ def main():
 
     task = f"""
         Follow these steps exactly and output results cleanly.
-        1. Go to https://localhost:3000/agent-login  
+        1. Go to http://localhost:3000/agent-login  
         2. Use get_nonce() to read the 32-hex nonce from the page.  
         3. Use get_session_key({args.keyId}) to get the base64 session key.  
         4. Compute the HMAC using:
