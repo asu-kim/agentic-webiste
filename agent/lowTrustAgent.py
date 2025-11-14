@@ -416,6 +416,9 @@ Rules:
 - Print each steps' description.
 - Do NOT invent or assume any functions that are not in the registered tool list.
 - Combine all steps into a single valid Python code block enclosed by <code> ... </code>.
+- The code block must contain only executable Python code — **no natural language sentences, explanations, or comments written in prose.**
+- Natural-language explanations or reasoning belong outside the <code> block.
+- Use only valid Python syntax inside the <code> block.
 - The code must run without syntax errors.
 - The final line must call final_answer(items_json).
 
