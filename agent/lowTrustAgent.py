@@ -183,7 +183,7 @@ def get_nonce() -> str:
     sleep(5.0)
     try:
         temp = driver.find_element(By.ID, "nonceHex")
-        return temp  
+        return temp.get_attribute("value")
     except Exception:
         pass
     
