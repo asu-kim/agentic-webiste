@@ -38,8 +38,11 @@ export default function Dashboard(){
   };
 
   const callScope = async (scope) => {
+    if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+      const username = localStorage.getItem("username")
+    }
     const headers = {
-      "X-user": localStorage.getItem("username") || '', //// 
+      "X-user": username || '',
       "X-Trust-Level": trust,
     };
     try {

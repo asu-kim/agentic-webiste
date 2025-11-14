@@ -14,7 +14,10 @@ const API_BASE = 'http://127.0.0.1:5000';
 
 function loadPolicy(username) {
   try {
-    const raw = localStorage.getItem(`policy:${username}`);
+    if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+      const raw = localStorage.getItem(`policy:${username}`);
+    }
+    
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -23,7 +26,10 @@ function loadPolicy(username) {
 }
 
 function savePolicy(username, policy) {
-  localStorage.setItem(`policy:${username}`, JSON.stringify(policy));
+  if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+    localStorage.setItem(`policy:${username}`, JSON.stringify(policy));
+  }
+  
 }
 
 export default function AccessControl({ username }) {

@@ -24,6 +24,7 @@ pip install -r requirements.txt
 3) Check `iotauth` submodule
 ```
 cd $ROOT/iotauth
+git submodule update --init --recursive
 git pull
 ```
 
