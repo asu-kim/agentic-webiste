@@ -30,23 +30,9 @@ git pull
 
 ## 2. Run website
 
-You need **four** separate terminal windows to run.
+You need **five** separate terminal windows to run the experiment.
 
-Open terminal 1
-```
-# install dependencies
-cd $ROOT/website
-npm install
-npm start
-```
-
-Open terminal 2
-```
-cd $ROOT/website
-python3 app.py  # py app.py for window
-```
-
-Open terminal 3
+### Open terminal 1
 ```
 # generate entities
 cd $ROOT/iotauth/examples
@@ -60,7 +46,7 @@ make
 java -jar target/auth-server-jar-with-dependencies.jar -p ../properties/exampleAuth101.properties
 ```
 
-Open terminal 4
+### Open terminal 2
 ```
 # generate key for delegate access to agent
 cd $ROOT/iotauth/entity/node/example_entities
@@ -74,4 +60,32 @@ delegateAccess <trust_level>
 ```
 Terminate the program after checking the `sessionKeyID`.
 
-**TODO** setup agent program? get session key manually?
+### Open terminal 3
+```
+cd $ROOT/website
+python3 app.py  # py app.py for window
+```
+
+### Open terminal 4
+```
+# install dependencies
+cd $ROOT/website
+npm install
+npm start
+```
+On the website,
+1. Register with username `user` and your password.
+2. `Open Agent Access Control` and set the scope for each agent (high, medium, low).
+3. Log out or close the window.
+
+If you get `SecurityError: Cannot initialize local storage without a --localstorage-file path` error, use below command to run website
+```
+NODE_OPTIONS="--localstorage-file=/tmp/node-localstorage.json" npm start
+```
+
+### Open terminal 5
+```
+# run agent
+python lowTrustAgent.py --keyId 00000000 --items all # email/phone/address/card/all
+```
+
