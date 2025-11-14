@@ -231,6 +231,7 @@ def login(hmac_hex: str, tokenId: str) -> str:
 
     Args:
         hmac_hex: The 64-character hex HMAC value to enter.
+        tokenId: Session Key Id to get session key from auth.
 
     Returns:
         A status message indicating that the login was submitted.
