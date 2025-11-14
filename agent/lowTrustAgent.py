@@ -340,7 +340,6 @@ def get_items(item: str) -> str:
     results = {}
 
     def click_scope(scope: str):
-        """해당 스코프 카드의 Request 버튼을 클릭."""
         label = SCOPE_LABELS[scope]
 
         try:
@@ -424,8 +423,8 @@ Rules:
 - Do NOT invent or assume any functions that are not in the registered tool list.
 - Combine all steps into a single valid Python code block enclosed by <code> ... </code>.
 - The code block must contain only executable Python code — **no natural language sentences, explanations, or comments written in prose.**
-- Natural-language explanations or reasoning belong outside the <code> block.
-- Use only valid Python syntax inside the <code> block.
+- Natural-language explanations or reasoning belong outside the <code> block and Executing parsed code.
+- Use only valid Python syntax inside the <code> block and Executing parsed code.
 - The code must run without syntax errors.
 - The final line must call final_answer(items_json).
 
@@ -464,11 +463,7 @@ def main():
         1. Go to http://localhost:3000/agent-login  
         2. Use get_nonce() to read the 32-hex nonce from the page.  
         3. Use get_session_key({args.keyId}) to get the base64 session key.  
-        4. Compute the HMAC using:
-            hmac_sha256_hex(session_key, nonce)
-        where:
-            - key = the base64 session_key (decode before use)
-            - message = the hexadecimal nonce  
+        4. Compute the HMAC using: hmac_sha256_hex(session_key, nonce)
         5. Login with login(<hmac_hex>).  
         6. After login, use get_items({args.items}) to get the requested data.  
         """
