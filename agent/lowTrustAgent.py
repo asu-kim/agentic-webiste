@@ -57,7 +57,7 @@ def _parse_last_json_line(stdout: str) -> dict:
     raise ValueError("No JSON line found in Node output")
 
 def fetch_session_keys(config_path: str, key_id: int):
-    agent_dir = _abs(os.path.join(here, '../../../iotauth/entity/node/example_entities'))
+    agent_dir = _abs(os.path.join(here, '../iotauth/entity/node/example_entities'))
     cmd = f'node agent.js {shlex.quote(config_path)} keyId {int(key_id)}'
     p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=agent_dir)
     if p.returncode != 0:
@@ -179,7 +179,11 @@ def get_nonce() -> str:
 
     Raises:
         RuntimeError: If no 32-hex-digit nonce can be found on the page.
-    """    
+    """ 
+    sleep(5.0)
+    temp = driver.find_element(By.ID, "nonceHex")
+    if (temp):
+        return temp
     try:
         for sel in [
             (By.ID, "nonceHex"),
