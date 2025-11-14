@@ -14,7 +14,7 @@ const API_BASE = 'http://127.0.0.1:5000';
 
 function loadPolicy(username) {
   try {
-    if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+    if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(`policy:${username}`);
     }
     
@@ -26,14 +26,17 @@ function loadPolicy(username) {
 }
 
 function savePolicy(username, policy) {
-  if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+  if (typeof localStorage !== 'undefined') {
     localStorage.setItem(`policy:${username}`, JSON.stringify(policy));
   }
   
 }
 
 export default function AccessControl({ username }) {
-  const effectiveUser = username || localStorage.getItem("username") || "Guest";
+  if (typeof localStorage !== 'undefined') {
+    const user = localStorage.getItem("username");
+  }
+  const effectiveUser = username || user || "Guest";
 
   const [policy, setPolicy] = useState(() => {
     const existing = loadPolicy(effectiveUser);
@@ -100,7 +103,10 @@ export default function AccessControl({ username }) {
         setStatus("Saved locally (no API base configured).");
         return;
       }
-      const token = localStorage.getItem("token");
+      if (typeof localStorage !== 'undefined') {
+        const token = localStorage.getItem("token");
+      }
+      
       const resp = await fetch(`${API_BASE}/api/policy`, {
         method: "POST",
         headers: {

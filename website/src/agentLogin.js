@@ -55,25 +55,25 @@ export default function AgentLogin() {
       }
 
       const trust = data.trust_level || "low";
-      if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+      if (typeof localStorage !== 'undefined') {
         localStorage.setItem("agent_trust", trust);
       }
       
       const ttlMs = Number(data.session_validity || 0);
       if (ttlMs > 0) {
         const expiresAtMs = Date.now() + ttlMs;
-        if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+        if (typeof localStorage !== 'undefined') {
           localStorage.setItem("agent_session_expires_at", String(expiresAtMs));
         }
       } else {
-        if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+        if (typeof localStorage !== 'undefined') {
           localStorage.removeItem("agent_session_expires_at");
         }
         
       }
 
       const agentName = trust + "Trust" + "Agent";
-      if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+      if (typeof localStorage !== 'undefined') {
         localStorage.setItem("agentname", agentName);
       }
       
