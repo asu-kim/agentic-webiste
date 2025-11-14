@@ -463,7 +463,7 @@ def main():
         1. Go to http://localhost:3000/agent-login  
         2. Use get_nonce() to read the 32-hex nonce from the page.  
         3. Use get_session_key({args.keyId}) to get the base64 session key.  
-        4. Compute the HMAC using: hmac_sha256_hex(session_key, nonce)
+        4. Compute the HMAC using: hmac_sha256_hex(session_key, nonce) Use raw value of session_key and nonce.
         5. Login with login(<hmac_hex>).  
         6. After login, use get_items({args.items}) to get the requested data.  
         """
